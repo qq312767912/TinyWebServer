@@ -16,40 +16,40 @@
 #include "sql_connection_pool.h"
 
 
-#define MAX_FD 65536            //×î´óÎÄ¼şÃèÊö·û
-#define MAX_EVENT_NUMBER 10000	//×î´óÊÂ¼şÊı
-#define TIMESLOT 5				//×îĞ¡³¬Ê±µ¥Î»
+#define MAX_FD 65536            //æœ€å¤§æ–‡ä»¶æè¿°ç¬¦
+#define MAX_EVENT_NUMBER 10000	//æœ€å¤§äº‹ä»¶æ•°
+#define TIMESLOT 5				//æœ€å°è¶…æ—¶å•ä½
 
-#define SYNSQL //Í¬²½Êı¾İ¿âĞ£Ñé
-//#define CGISQLPOOL    //CGIÊı¾İ¿âĞ£Ñé
-#define SYNLOG //Í¬²½Ğ´ÈÕÖ¾
-//#define ASYNLOG       //Òì²½Ğ´ÈÕÖ¾
+#define SYNSQL //åŒæ­¥æ•°æ®åº“æ ¡éªŒ
+//#define CGISQLPOOL    //CGIæ•°æ®åº“æ ¡éªŒ
+#define SYNLOG //åŒæ­¥å†™æ—¥å¿—
+//#define ASYNLOG       //å¼‚æ­¥å†™æ—¥å¿—
 
-//#define ET            //±ßÔµ´¥·¢·Ç×èÈû
-#define LT //Ë®Æ½´¥·¢×èÈû
+//#define ET            //è¾¹ç¼˜è§¦å‘éé˜»å¡
+#define LT //æ°´å¹³è§¦å‘é˜»å¡
 
 extern int addfd(int epollfd, int fd, bool one_shot);
 extern int remove(int epollfd, int fd);
 extern int setnonblock(int fd);
 
-//ÉèÖÃ¶¨Ê±Æ÷Ïà¹Ø²ÎÊı
+//è®¾ç½®å®šæ—¶å™¨ç›¸å…³å‚æ•°
 static int pipefd[2];
-//´´½¨¶¨Ê±Æ÷Á´±íÈİÆ÷
+//åˆ›å»ºå®šæ—¶å™¨é“¾è¡¨å®¹å™¨
 static sort_timer_lst timer_lst;
 static int epollfd = 0;
 
 
 
-//ĞÅºÅ´¦Àíº¯Êı
+//ä¿¡å·å¤„ç†å‡½æ•°
 	void sig_handler(int sig) {
-	//ÎªÁË±£Ö¤º¯ÊıµÄ¿ÉÖØÈëĞÔ£¬±£ÁôÔ­ÀíµÄerrno
-	//¿ÉÖØÈëĞÔ±íÊ¾ÖĞ¶ÏºóÔÙ´Î½øÈë¸Ãº¯Êı£¬»·¾³±äÁ¿ÓëÖ®Ç°ÏàÍ¬£¬²»»á¶ªÊ§Êı¾İ
+	//ä¸ºäº†ä¿è¯å‡½æ•°çš„å¯é‡å…¥æ€§ï¼Œä¿ç•™åŸç†çš„errno
+	//å¯é‡å…¥æ€§è¡¨ç¤ºä¸­æ–­åå†æ¬¡è¿›å…¥è¯¥å‡½æ•°ï¼Œç¯å¢ƒå˜é‡ä¸ä¹‹å‰ç›¸åŒï¼Œä¸ä¼šä¸¢å¤±æ•°æ®
 		int save_errno = errno;
 		int msg = sig;
 
-		//½«ĞÅºÅÖµ´Ó¹ÜµÀµÄĞ´¶ËĞ´Èë
+		//å°†ä¿¡å·å€¼ä»ç®¡é“çš„å†™ç«¯å†™å…¥
 		send(pipefd[1], (char*)&msg, 1, 0);
-		//½«Ô­À´µÄerrno¸³ÖµÎªµ±Ç°errno
+		//å°†åŸæ¥çš„errnoèµ‹å€¼ä¸ºå½“å‰errno
 		errno = save_errno;
 	}
 
@@ -57,24 +57,24 @@ static int epollfd = 0;
 		struct sigaction sa;
 		memset(&sa, '\0', sizeof(sa));
 		sa.sa_handler = handler;
-		//ÕâÀïrestartµÄÒâË¼ÊÇÊÕµ½ĞÅºÅºó£¬¼ÌĞøÔËĞĞ¸Ãº¯Êı¼ì²âĞÅºÅ
+		//è¿™é‡Œrestartçš„æ„æ€æ˜¯æ”¶åˆ°ä¿¡å·åï¼Œç»§ç»­è¿è¡Œè¯¥å‡½æ•°æ£€æµ‹ä¿¡å·
 		if (restart)
 			sa.sa_flags |= SA_RESTART;
-		//½«ËùÓĞĞÅºÅÌí¼Óµ½ĞÅºÅ¼¯ÖĞ
+		//å°†æ‰€æœ‰ä¿¡å·æ·»åŠ åˆ°ä¿¡å·é›†ä¸­
 		sigfillset(&sa.sa_mask);
-		//Ö´ĞĞsigactionº¯Êı
+		//æ‰§è¡Œsigactionå‡½æ•°
 		assert(sigaction(sig, &sa, NULL) != -1);
 	}
 
-	//¶¨Ê±Æ÷»Øµ÷º¯Êı
+	//å®šæ—¶å™¨å›è°ƒå‡½æ•°
 	void cb_func(client_data* user_data) {
-	//É¾³ı·Ç»î¶¯Á¬½ÓÔÚsocketÉÏµÄ×¢²áÊÂ¼ş
+	//åˆ é™¤éæ´»åŠ¨è¿æ¥åœ¨socketä¸Šçš„æ³¨å†Œäº‹ä»¶
 		epoll_ctl(epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
 		assert(user_data);
 
-		//¹Ø±ÕÎÄ¼şÃèÊö·û
+		//å…³é—­æ–‡ä»¶æè¿°ç¬¦
 		close(user_data->sockfd);
-		//¼õÉÙÁ¬½ÓÊı
+		//å‡å°‘è¿æ¥æ•°
 		http_conn::m_user_count--;
 		LOG_INFO("close fd %d", user_data->sockfd);
     	Log::get_instance()->flush();
@@ -87,7 +87,7 @@ static int epollfd = 0;
 		close(connfd);
 	}
 
-	//SIGALRMĞÅºÅµÄ´¦Àí£º²»¶ÏµØÖØĞÂ¶¨Ê±
+	//SIGALRMä¿¡å·çš„å¤„ç†ï¼šä¸æ–­åœ°é‡æ–°å®šæ—¶
 	void timer_handler() {
 		timer_lst.tick();
 		alarm(TIMESLOT);
@@ -96,11 +96,11 @@ static int epollfd = 0;
 
 int main(int argc, char *argv[]){
 	#ifdef ASYNLOG
-    	Log::get_instance()->init("ServerLog", 2000, 800000, 8); //Òì²½ÈÕÖ¾Ä£ĞÍ
+    	Log::get_instance()->init("ServerLog", 2000, 800000, 8); //å¼‚æ­¥æ—¥å¿—æ¨¡å‹
 	#endif
 
 	#ifdef SYNLOG
-    	Log::get_instance()->init("ServerLog", 2000, 800000, 0); //Í¬²½ÈÕÖ¾Ä£ĞÍ
+    	Log::get_instance()->init("ServerLog", 2000, 800000, 0); //åŒæ­¥æ—¥å¿—æ¨¡å‹
 	#endif
 
     if (argc <= 1)
@@ -113,11 +113,11 @@ int main(int argc, char *argv[]){
 
 	addsig(SIGPIPE,SIG_IGN);
 
-	//´´½¨Êı¾İ¿âÁ¬½Ó³Ø
+	//åˆ›å»ºæ•°æ®åº“è¿æ¥æ± 
     connection_pool *connPool = connection_pool::GetInstance();
     connPool->init("localhost", "root", "root", "yourdb", 3306, 8);
 
-	//´´½¨Ïß³Ì³Ø,ĞèÒªÓÃÊı¾İ¿âÁ¬½Ó³ØÀ´newÏß³Ì³Ø
+	//åˆ›å»ºçº¿ç¨‹æ± ,éœ€è¦ç”¨æ•°æ®åº“è¿æ¥æ± æ¥newçº¿ç¨‹æ± 
     ThreadPool<http_conn> *pool = NULL;
     try
     {
@@ -127,17 +127,17 @@ int main(int argc, char *argv[]){
     {
         return 1;
     }
-    //´´½¨MAX_FD¸öhttpÀà¶ÔÏó
+    //åˆ›å»ºMAX_FDä¸ªhttpç±»å¯¹è±¡
     http_conn *users = new http_conn[MAX_FD];
     assert(users);
 
 	#ifdef SYNSQL
-    	//³õÊ¼»¯Êı¾İ¿â¶ÁÈ¡±í
+    	//åˆå§‹åŒ–æ•°æ®åº“è¯»å–è¡¨
     	users->initmysql_result(connPool);
 	#endif
 
 	#ifdef CGISQLPOOL
-   		//³õÊ¼»¯Êı¾İ¿â¶ÁÈ¡±í
+   		//åˆå§‹åŒ–æ•°æ®åº“è¯»å–è¡¨
     	users->initresultFile(connPool);
 	#endif
 
@@ -158,36 +158,36 @@ int main(int argc, char *argv[]){
     ret = listen(listenfd, 5);
     assert(ret >= 0);
 
-	//´´½¨ÄÚºËÊÂ¼ş±í
+	//åˆ›å»ºå†…æ ¸äº‹ä»¶è¡¨
 	epoll_event events[MAX_EVENT_NUMBER];
 	epollfd = epoll_create(5);
 	assert(epollfd != -1);
 
-	//½«¼àÌıÌ×½Ó×Ö·ÅÔÚepollÊ÷ÉÏ
+	//å°†ç›‘å¬å¥—æ¥å­—æ”¾åœ¨epollæ ‘ä¸Š
 	addfd(epollfd, listenfd, false);
 
-	//½«epollfd¸³Öµ¸øhttpÀà¶ÔÏóµÄm_epollfdÊôĞÔ
+	//å°†epollfdèµ‹å€¼ç»™httpç±»å¯¹è±¡çš„m_epollfdå±æ€§
 	http_conn::m_epollfd = epollfd;
 
-	//´´½¨¹ÜµÀÌ×½Ó×Ö
+	//åˆ›å»ºç®¡é“å¥—æ¥å­—
 	ret = socketpair(PF_UNIX, SOCK_STREAM, 0, pipefd);
 	assert(ret != -1);
-	//ÉèÖÃ¹ÜµÀĞ´¶Ë·Ç×èÈû
+	//è®¾ç½®ç®¡é“å†™ç«¯éé˜»å¡
 	setnonblock(pipefd[1]);
-	//ÉèÖÃ¹ÜµÀ¶Á¶ËÎ´ET·Ç×èÈû
+	//è®¾ç½®ç®¡é“è¯»ç«¯æœªETéé˜»å¡
 	addfd(epollfd, pipefd[0], false);
 
-	//´«µİ¸øÖ÷Ñ­»·µÄĞÅºÅÖµ£¬Ö»¹Ø×¢SIGALRMºÍSIGTERM
+	//ä¼ é€’ç»™ä¸»å¾ªç¯çš„ä¿¡å·å€¼ï¼Œåªå…³æ³¨SIGALRMå’ŒSIGTERM
 	addsig(SIGALRM, sig_handler, false);
 	addsig(SIGTERM, sig_handler, false);
-	//Ñ­»·Ìõ¼ş
+	//å¾ªç¯æ¡ä»¶
 	bool stop_server = false;
 
-	//´´½¨Á¬½Ó×ÊÔ´Êı×é
+	//åˆ›å»ºè¿æ¥èµ„æºæ•°ç»„
 	client_data *users_timer = new client_data[MAX_FD];
-	//³¬Ê±±êÖ¾³õÊ¼»¯Îªfalse
+	//è¶…æ—¶æ ‡å¿—åˆå§‹åŒ–ä¸ºfalse
 	bool timeout = false;
-	//alarm¶¨Ê±´¥·¢SIGALRMĞÅºÅ
+	//alarmå®šæ—¶è§¦å‘SIGALRMä¿¡å·
 	alarm(TIMESLOT);
 
 	while (!stop_server){
@@ -196,7 +196,7 @@ int main(int argc, char *argv[]){
 		LOG_ERROR("%s", "epoll failure");
 		break;
 	}
-	//¶Ô¾ÍĞ÷ÊÂ¼ş½øĞĞ´¦Àí
+	//å¯¹å°±ç»ªäº‹ä»¶è¿›è¡Œå¤„ç†
 	for (int i = 0; i < number; ++i) {
 		int sockfd = events[i].data.fd;
 		if (sockfd == listenfd) {
@@ -217,8 +217,8 @@ int main(int argc, char *argv[]){
 			}
 			users[connfd].init(connfd, client_address);
 
-			//³õÊ¼»¯client_dataÊı¾İ
-			//´´½¨¶¨Ê±Æ÷£¬ÉèÖÃ»Øµ÷º¯ÊıºÍ³¬Ê±Ê±¼ä£¬°ó¶¨ÓÃ»§Êı¾İ£¬½«¶¨Ê±Æ÷Ìí¼Óµ½Á´±íÖĞ
+			//åˆå§‹åŒ–client_dataæ•°æ®
+			//åˆ›å»ºå®šæ—¶å™¨ï¼Œè®¾ç½®å›è°ƒå‡½æ•°å’Œè¶…æ—¶æ—¶é—´ï¼Œç»‘å®šç”¨æˆ·æ•°æ®ï¼Œå°†å®šæ—¶å™¨æ·»åŠ åˆ°é“¾è¡¨ä¸­
 			users_timer[connfd].address = client_address;
 			users_timer[connfd].sockfd = connfd;
 			util_timer *timer = new util_timer;
@@ -230,7 +230,7 @@ int main(int argc, char *argv[]){
 			timer_lst.add_timer(timer);
 #endif
 
-			//ET·Ç×èÈû±ßÑØ´¥·¢£¬ĞèÒªÑ­»·½ÓÊÕÊı¾İ£¬ÒòÎª±ßÑØ´¥·¢Ö»»áÌáĞÑÒ»´Î£¬ÄÇÃ´¾Í°ÑÕâ´ÎÊÕµ½µÄËùÓĞÊı¾İ¶¼Ò»´ÎĞ´Èë
+			//ETéé˜»å¡è¾¹æ²¿è§¦å‘ï¼Œéœ€è¦å¾ªç¯æ¥æ”¶æ•°æ®ï¼Œå› ä¸ºè¾¹æ²¿è§¦å‘åªä¼šæé†’ä¸€æ¬¡ï¼Œé‚£ä¹ˆå°±æŠŠè¿™æ¬¡æ”¶åˆ°çš„æ‰€æœ‰æ•°æ®éƒ½ä¸€æ¬¡å†™å…¥
 #ifdef ET
 			while (1)
 			{
@@ -248,8 +248,8 @@ int main(int argc, char *argv[]){
 				}
 				users[connfd].init(connfd, client_address);
 
-				//³õÊ¼»¯client_dataÊı¾İ
-				//´´½¨¶¨Ê±Æ÷£¬ÉèÖÃ»Øµ÷º¯ÊıºÍ³¬Ê±Ê±¼ä£¬°ó¶¨ÓÃ»§Êı¾İ£¬½«¶¨Ê±Æ÷Ìí¼Óµ½Á´±íÖĞ
+				//åˆå§‹åŒ–client_dataæ•°æ®
+				//åˆ›å»ºå®šæ—¶å™¨ï¼Œè®¾ç½®å›è°ƒå‡½æ•°å’Œè¶…æ—¶æ—¶é—´ï¼Œç»‘å®šç”¨æˆ·æ•°æ®ï¼Œå°†å®šæ—¶å™¨æ·»åŠ åˆ°é“¾è¡¨ä¸­
 				users_timer[connfd].address = client_address;
 				users_timer[connfd].sockfd = connfd;
 				util_timer *timer = new util_timer;
@@ -263,9 +263,9 @@ int main(int argc, char *argv[]){
 			continue;
 #endif
 		}
-		//´¦ÀíÒì³£ÊÂ¼ş
+		//å¤„ç†å¼‚å¸¸äº‹ä»¶
 		else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR)) {
-			//·şÎñÆ÷¶Ë¹Ø±ÕÁ¬½Ó,ÒÆ³ı¶ÔÓ¦¶¨Ê±Æ÷
+			//æœåŠ¡å™¨ç«¯å…³é—­è¿æ¥,ç§»é™¤å¯¹åº”å®šæ—¶å™¨
 			util_timer *timer = users_timer[sockfd].timer;
 			timer->cb_func(&users_timer[sockfd]);
 			if(timer){
@@ -273,13 +273,13 @@ int main(int argc, char *argv[]){
 			}
 		}
 
-		//´¦ÀíĞÅºÅ
-		//¹ÜµÀ¶Á¶Ë¶ÔÓ¦µÄÎÄ¼şÃèÊö·û·¢Éú¶ÁÊÂ¼ş,¶Á¹ÜµÀ¼ÓÈëÁËepollÊ÷£¬±¾ÖÊÉÏÒ²ÊÇfd
+		//å¤„ç†ä¿¡å·
+		//ç®¡é“è¯»ç«¯å¯¹åº”çš„æ–‡ä»¶æè¿°ç¬¦å‘ç”Ÿè¯»äº‹ä»¶,è¯»ç®¡é“åŠ å…¥äº†epollæ ‘ï¼Œæœ¬è´¨ä¸Šä¹Ÿæ˜¯fd
 		else if ((sockfd == pipefd[0]) && (events[i].events&EPOLLIN)) {
 			int sig;
             char signals[1024];
-			//´Ó¹ÜµÀ¶Á¶Ë¶Á³öĞÅºÅÖµ£¬³É¹¦·µ»Ø×Ö½ÚÊı£¬Ê§°Ü-1
-			//Õı³£Çé¿öÏÂret·µ»ØÖµ×ÜÊÇ1£¬Ö»ÓĞ14ºÍ15Á½¸öASCIIÂë¶ÔÓ¦µÄ×Ö·û
+			//ä»ç®¡é“è¯»ç«¯è¯»å‡ºä¿¡å·å€¼ï¼ŒæˆåŠŸè¿”å›å­—èŠ‚æ•°ï¼Œå¤±è´¥-1
+			//æ­£å¸¸æƒ…å†µä¸‹retè¿”å›å€¼æ€»æ˜¯1ï¼Œåªæœ‰14å’Œ15ä¸¤ä¸ªASCIIç å¯¹åº”çš„å­—ç¬¦
 			//SIGALRM 14
 			//SIGTERM 15
 			ret = recv(pipefd[0], signals, sizeof(signals), 0);
@@ -311,18 +311,18 @@ int main(int argc, char *argv[]){
 			}				
 		}
 
-		//´¦Àí¿Í»§¶ËÉÏ½ÓÊÕµ½µÄÊı¾İ
+		//å¤„ç†å®¢æˆ·ç«¯ä¸Šæ¥æ”¶åˆ°çš„æ•°æ®
 		else if (events[i].events&EPOLLIN) {
-			//¶ÁÈë¶ÔÓ¦»º³åÇø,ÕâÀïsockfdÊÇÎÄ¼şÃèÊö·ûÊ÷ÀïµÄÎÄ¼şÃèÊö·û£¬usersÊÇ´´½¨µÄ65535¸öhttp_conn¶ÔÏó
-			//Ö®ËùÒÔ´´½¨´óÁ¿µÄ¶ÔÏó£¬¾ÍÊÇÈÃËùÓĞµÄsockfdÓĞ¶ÔÏó¿ÉÒÔ½Ó¹Ü£¬ÎÄ¼şÃèÊö·ûÊÇ0-65535£¬¶øÎÄ¼şÃèÊö·ûÔò¶ÔÓ¦µ½usersµÄÊı×éĞòºÅ
+			//è¯»å…¥å¯¹åº”ç¼“å†²åŒº,è¿™é‡Œsockfdæ˜¯æ–‡ä»¶æè¿°ç¬¦æ ‘é‡Œçš„æ–‡ä»¶æè¿°ç¬¦ï¼Œusersæ˜¯åˆ›å»ºçš„65535ä¸ªhttp_connå¯¹è±¡
+			//ä¹‹æ‰€ä»¥åˆ›å»ºå¤§é‡çš„å¯¹è±¡ï¼Œå°±æ˜¯è®©æ‰€æœ‰çš„sockfdæœ‰å¯¹è±¡å¯ä»¥æ¥ç®¡ï¼Œæ–‡ä»¶æè¿°ç¬¦æ˜¯0-65535ï¼Œè€Œæ–‡ä»¶æè¿°ç¬¦åˆ™å¯¹åº”åˆ°usersçš„æ•°ç»„åºå·
 			util_timer *timer = users_timer[sockfd].timer;
 			if (users[sockfd].read_once()) {
 				LOG_INFO("deal with the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
                 Log::get_instance()->flush();
-				//¼ì²âµ½¶ÁÊÂ¼ş£¬·ÅÈëÇëÇó¶ÓÁĞ
+				//æ£€æµ‹åˆ°è¯»äº‹ä»¶ï¼Œæ”¾å…¥è¯·æ±‚é˜Ÿåˆ—
 				pool->append(users + sockfd);
-				//ÈôÓĞÊı¾İ´«Êä£¬Ôò½«¶¨Ê±Æ÷ÍùºóÑÓ³Ù3¸öµ¥Î»
-				//²¢¶ÔĞÂµÄ¶¨Ê±Æ÷ÔÚÁ´±íÉÏµÄÎ»ÖÃ½øĞĞµ÷Õû
+				//è‹¥æœ‰æ•°æ®ä¼ è¾“ï¼Œåˆ™å°†å®šæ—¶å™¨å¾€åå»¶è¿Ÿ3ä¸ªå•ä½
+				//å¹¶å¯¹æ–°çš„å®šæ—¶å™¨åœ¨é“¾è¡¨ä¸Šçš„ä½ç½®è¿›è¡Œè°ƒæ•´
 				if (timer)
 				{
 					time_t cur = time(NULL);
@@ -333,7 +333,7 @@ int main(int argc, char *argv[]){
 				}
 			}
 			else{
-					//·şÎñÆ÷¹Ø±ÕÁ¬½Ó
+					//æœåŠ¡å™¨å…³é—­è¿æ¥
 					timer->cb_func(&users_timer[sockfd]);
 					if(timer){
 						timer_lst.del_timer(timer);
@@ -341,7 +341,7 @@ int main(int argc, char *argv[]){
 				}
 			}
 
-		//´¦Àí¿Í»§Á¬½ÓÉÏ½ÓÊÕµ½µÄÊı¾İ
+		//å¤„ç†å®¢æˆ·è¿æ¥ä¸Šæ¥æ”¶åˆ°çš„æ•°æ®
 		else if (events[i].events & EPOLLOUT)
 		{
 			util_timer *timer = users_timer[sockfd].timer;
@@ -350,8 +350,8 @@ int main(int argc, char *argv[]){
 				LOG_INFO("send data to the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
 				Log::get_instance()->flush();
 
-				//ÈôÓĞÊı¾İ´«Êä£¬Ôò½«¶¨Ê±Æ÷ÍùºóÑÓ³Ù3¸öµ¥Î»
-				//²¢¶ÔĞÂµÄ¶¨Ê±Æ÷ÔÚÁ´±íÉÏµÄÎ»ÖÃ½øĞĞµ÷Õû
+				//è‹¥æœ‰æ•°æ®ä¼ è¾“ï¼Œåˆ™å°†å®šæ—¶å™¨å¾€åå»¶è¿Ÿ3ä¸ªå•ä½
+				//å¹¶å¯¹æ–°çš„å®šæ—¶å™¨åœ¨é“¾è¡¨ä¸Šçš„ä½ç½®è¿›è¡Œè°ƒæ•´
 				if (timer)
 				{
 					time_t cur = time(NULL);
@@ -362,15 +362,15 @@ int main(int argc, char *argv[]){
 				}
 			}
 		else {
-		//ÊÕ²»µ½Êı¾İËµÃ÷¶Ô·½¶Ï¿ªÁËÁ¬½Ó£¬¹Ø±Õ·şÎñÆ÷Á¬½Ó£¬ÒÆ³ı¶ÔÓ¦µÄ¶¨Ê±Æ÷
+		//æ”¶ä¸åˆ°æ•°æ®è¯´æ˜å¯¹æ–¹æ–­å¼€äº†è¿æ¥ï¼Œå…³é—­æœåŠ¡å™¨è¿æ¥ï¼Œç§»é™¤å¯¹åº”çš„å®šæ—¶å™¨
 			timer->cb_func(&users_timer[sockfd]);
 			if (timer)
 				timer_lst.del_timer(timer);
 				}
 			}
 		}
-		//´¦Àí¶¨Ê±Æ÷Îª·Ç±ØĞëÊÂ¼ş£¬ÊÕµ½ĞÅºÅ²¢²»ÊÇÂíÉÏ´¦Àí
-		//Íê³É¶ÁĞ´ÊÂ¼şºó£¬ÔÙ´¦ÀíSIGALRMĞÅºÅ£¬·´¸´Ö´ĞĞ£¬Ã¿ÈıÃëÖ´ĞĞÒ»´Î
+		//å¤„ç†å®šæ—¶å™¨ä¸ºéå¿…é¡»äº‹ä»¶ï¼Œæ”¶åˆ°ä¿¡å·å¹¶ä¸æ˜¯é©¬ä¸Šå¤„ç†
+		//å®Œæˆè¯»å†™äº‹ä»¶åï¼Œå†å¤„ç†SIGALRMä¿¡å·ï¼Œåå¤æ‰§è¡Œï¼Œæ¯ä¸‰ç§’æ‰§è¡Œä¸€æ¬¡
 		if (timeout) {
 			timer_handler();
 			timeout = false;
