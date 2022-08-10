@@ -8,5 +8,30 @@
 经webbench压力测试可以实现上万的并发连接数据交换  
 
 感谢<br>
-两猿社的学习资料和帮助<br>
 《Linux高性能服务器编程》 游双著
+
+# 运行
+// 建立yourdb库
+create database yourdb;
+
+// 创建user表
+USE yourdb;
+CREATE TABLE user(
+    username char(50) NULL,
+    passwd char(50) NULL
+)ENGINE=InnoDB;
+
+// 添加数据
+INSERT INTO user(username, passwd) VALUES('name', 'passwd');
+修改main.cpp中的数据库初始化信息
+
+//数据库登录名,密码,库名
+string user = "root";
+string passwd = "root";
+string databasename = "yourdb";
+
+启动server
+./server
+
+浏览器端
+ip:9006
