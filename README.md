@@ -11,28 +11,28 @@
 《Linux高性能服务器编程》 游双著
 
 # 运行
-// 建立yourdb库
+### 建立yourdb库
 `create database yourdb;`
 
-// 创建user表
-USE yourdb;
+### 创建user表
+`USE yourdb;
 CREATE TABLE user(
     username char(50) NULL,
     passwd char(50) NULL
 )ENGINE=InnoDB;
-
-// 添加数据
-INSERT INTO user(username, passwd) VALUES('name', 'passwd');
+`
+### 添加数据
+`INSERT INTO user(username, passwd) VALUES('name', 'passwd');`
 修改main.cpp中的数据库初始化信息
 
-//数据库登录名,密码,库名
-string user = "root";
-string passwd = "root";
-string databasename = "yourdb";
+### 数据库登录名,密码,库名
+`string user = "root";`
+`string passwd = "root";`
+`string databasename = "yourdb";`
 
-启动server
-./server
+### 启动server
+`./server`
 
-浏览器端
-ip:9006
+### 浏览器端
+`ip:9006`
 
