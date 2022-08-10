@@ -25,8 +25,6 @@
 `INSERT INTO user(username, passwd) VALUES('name', 'passwd');`
 
 ### 修改main.cpp中的数据库初始化信息
-
-### 数据库登录名,密码,库名
 `string user = "root";`
 `string passwd = "root";`
 `string databasename = "yourdb";`
