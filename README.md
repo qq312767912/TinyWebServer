@@ -22,8 +22,9 @@
 `)ENGINE=InnoDB;`
 
 ### 添加数据
-`INSERT INTO user(username, passwd) VALUES('name', 'passwd');`
 修改main.cpp中的数据库初始化信息
+`INSERT INTO user(username, passwd) VALUES('name', 'passwd');`
+
 
 ### 数据库登录名,密码,库名
 `string user = "root";`
