@@ -11,8 +11,8 @@
 《Linux高性能服务器编程》 游双著
 
 # 运行
-`// 建立yourdb库
-create database yourdb;
+// 建立yourdb库
+`create database yourdb;`
 
 // 创建user表
 USE yourdb;
@@ -35,4 +35,4 @@ string databasename = "yourdb";
 
 浏览器端
 ip:9006
-`
+
